@@ -26,6 +26,29 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
 #include <stdint.h>
 
+#ifndef DEBUG
+#define DEBUG 1
+ /* Define DEBUG 1 to log all
+    If 0, individual files may be logged with
+    #define DEBUG 1 before hackrf.h is included */
+#endif
+#include <stdio.h>
+#include <string.h>
+#ifdef _WIN32
+#define __FILENAME__ strrchr("\\" __FILE__, '\\') + 1
+#else
+#define __FILENAME__ strrchr("/" __FILE__, '/') + 1
+//#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#endif
+#define _log(fmt, ...)                                  \
+  do { if (DEBUG) {                                     \
+      fflush(stdout);                                   \
+      fprintf(stderr, "%s:%d:%s(): " fmt, __FILENAME__, \
+              __LINE__, __func__, ##__VA_ARGS__);       \
+      fflush(stderr);                                   \
+    }							\
+  } while (0)
+
 #ifdef _WIN32
    #define ADD_EXPORTS
    

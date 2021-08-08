@@ -168,6 +168,8 @@ int last_libusb_error = LIBUSB_SUCCESS;
 
 static void request_exit(hackrf_device* device)
 {
+	_log("enter\n");
+	_log("setting do_exit\n");
 	device->do_exit = true;
 }
 
@@ -179,8 +181,13 @@ static void request_exit(hackrf_device* device)
  */
 static int transfers_check_setup(hackrf_device* device)
 {
+	_log("enter\n");
 	if( (device->transfers != NULL) && (device->transfers_setup == true) )
+	{
+		_log("return true\n");
 		return true;
+	}
+	_log("return false\n");
 	return false;
 }
 
@@ -200,7 +207,9 @@ static int transfers_check_setup(hackrf_device* device)
  */
 static int cancel_transfers(hackrf_device* device)
 {
+	_log("enter\n");
 	uint32_t transfer_index;
+	int result;
 
 	if(transfers_check_setup(device) == true)
 	{
@@ -208,18 +217,24 @@ static int cancel_transfers(hackrf_device* device)
 		{
 			if( device->transfers[transfer_index] != NULL )
 			{
-				libusb_cancel_transfer(device->transfers[transfer_index]);
+				_log("cancelling transfer %d\n", transfer_index);
+				result = libusb_cancel_transfer(device->transfers[transfer_index]);
+				_log("libusb_cancel_transfer returned %d %s\n", result, libusb_error_name(result));
 			}
 		}
+		_log("setting transfers_setup to false\n");
 		device->transfers_setup = false;
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	} else {
+		_log("return error-other\n");
 		return HACKRF_ERROR_OTHER;
 	}
 }
 
 static int free_transfers(hackrf_device* device)
 {
+	_log("enter\n");
 	uint32_t transfer_index;
 
 	if( device->transfers != NULL )
@@ -236,17 +251,20 @@ static int free_transfers(hackrf_device* device)
 		free(device->transfers);
 		device->transfers = NULL;
 	}
+	_log("return\n");
 	return HACKRF_SUCCESS;
 }
 
 static int allocate_transfers(hackrf_device* const device)
 {
+	_log("enter\n");
 	if( device->transfers == NULL )
 	{
 		uint32_t transfer_index;
 		device->transfers = (struct libusb_transfer**) calloc(TRANSFER_COUNT, sizeof(struct libusb_transfer));
 		if( device->transfers == NULL )
 		{
+			_log("return error no-mem\n");
 			return HACKRF_ERROR_NO_MEM;
 		}
 
@@ -257,6 +275,7 @@ static int allocate_transfers(hackrf_device* const device)
 			device->transfers[transfer_index] = libusb_alloc_transfer(0);
 			if( device->transfers[transfer_index] == NULL )
 			{
+				_log("return error libusb\n");
 				return HACKRF_ERROR_LIBUSB;
 			}
 
@@ -273,11 +292,14 @@ static int allocate_transfers(hackrf_device* const device)
 
 			if( device->transfers[transfer_index]->buffer == NULL )
 			{
+				_log("return error no-mem 2\n");
 				return HACKRF_ERROR_NO_MEM;
 			}
 		}
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	} else {
+		_log("return error busy\n");
 		return HACKRF_ERROR_BUSY;
 	}
 }
@@ -287,12 +309,14 @@ static int prepare_transfers(
 	const uint_fast8_t endpoint_address,
 	libusb_transfer_cb_fn callback)
 {
+	_log("enter\n");
 	int error;
 	uint32_t transfer_index;
 	if( device->transfers != NULL )
 	{
 		for(transfer_index=0; transfer_index<TRANSFER_COUNT; transfer_index++)
 		{
+			_log("preparing transfer %d, ep %d\n", transfer_index, endpoint_address);
 			device->transfers[transfer_index]->endpoint = endpoint_address;
 			device->transfers[transfer_index]->callback = callback;
 
@@ -300,19 +324,24 @@ static int prepare_transfers(
 			if( error != 0 )
 			{
 				last_libusb_error = error;
+				_log("libusb_submit_transfer failed - return error libusb\n");
 				return HACKRF_ERROR_LIBUSB;
 			}
 		}
+		_log("setting transfers_setup to true\n");
 		device->transfers_setup = true;
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	} else {
 		// This shouldn't happen.
+		_log("return error other\n");
 		return HACKRF_ERROR_OTHER;
 	}
 }
 
 static int detach_kernel_drivers(libusb_device_handle* usb_device_handle)
 {
+	_log("enter\n");
 	int i, num_interfaces, result;
 	libusb_device* dev;
 	struct libusb_config_descriptor* config;
@@ -351,6 +380,7 @@ static int detach_kernel_drivers(libusb_device_handle* usb_device_handle)
 
 static int set_hackrf_configuration(libusb_device_handle* usb_device, int config)
 {
+	_log("enter\n");
 	int result, curr_config;
 
 	result = libusb_get_configuration(usb_device, &curr_config);
@@ -390,8 +420,10 @@ extern "C"
 
 int ADDCALL hackrf_init(void)
 {
+	_log("enter\n");
 	int libusb_error;
 	if (g_libusb_context != NULL) {
+		_log("return success - already running");
 		return HACKRF_SUCCESS;
 	}
 	
@@ -399,15 +431,17 @@ int ADDCALL hackrf_init(void)
 	if( libusb_error != 0 )
 	{
 		last_libusb_error = libusb_error;
+		_log("return error libusb\n");
 		return HACKRF_ERROR_LIBUSB;
 	} else {
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	}
 }
 
 int ADDCALL hackrf_exit(void)
 {
-
+	_log("enter\n");
 	if( open_devices == 0)
 	{
         if( g_libusb_context != NULL )
@@ -416,8 +450,10 @@ int ADDCALL hackrf_exit(void)
             g_libusb_context = NULL;
         }
 
+	_log("return success\n");
         return HACKRF_SUCCESS;
 	} else {
+		_log("return error not-last-device\n");
 		return HACKRF_ERROR_NOT_LAST_DEVICE;
 	}
 }
@@ -427,6 +463,7 @@ int ADDCALL hackrf_exit(void)
 #endif
 const char* ADDCALL hackrf_library_version()
 {
+	_log("enter\n");
 	return LIBRARY_VERSION;
 }
 
@@ -435,11 +472,13 @@ const char* ADDCALL hackrf_library_version()
 #endif
 const char* ADDCALL hackrf_library_release()
 {
+	_log("enter\n");
 	return LIBRARY_RELEASE;
 }
 
 hackrf_device_list_t* ADDCALL hackrf_device_list()
 {
+	_log("enter\n");
 	int i;
 	libusb_device_handle* usb_device = NULL;
 	uint8_t serial_descriptor_index;
@@ -470,6 +509,7 @@ hackrf_device_list_t* ADDCALL hackrf_device_list()
 			   (device_descriptor.idProduct == hackrf_jawbreaker_usb_pid) ||
 			   (device_descriptor.idProduct == rad1o_usb_pid)) {
 				idx = list->devicecount++;
+				_log("found GSG device - index %d\n", idx);
 				list->usb_board_ids[idx] = device_descriptor.idProduct;
 				list->usb_device_index[idx] = i;
 				
@@ -479,6 +519,7 @@ hackrf_device_list_t* ADDCALL hackrf_device_list()
 						usb_device = NULL;
 						continue;
 					}
+					_log("getting serial number\n");
 					serial_number_length = libusb_get_string_descriptor_ascii(usb_device, serial_descriptor_index, (unsigned char*)serial_number, sizeof(serial_number));
 					if( serial_number_length >= USB_MAX_SERIAL_LENGTH )
 						serial_number_length = USB_MAX_SERIAL_LENGTH;
@@ -493,11 +534,13 @@ hackrf_device_list_t* ADDCALL hackrf_device_list()
 		}
 	}
 	
+	_log("returning device list\n");
 	return list;
 }
 
 void ADDCALL hackrf_device_list_free(hackrf_device_list_t *list)
 {
+	_log("enter\n");
 	int i;
 	
 	libusb_free_device_list((libusb_device **)list->usb_devices, 1);
@@ -515,6 +558,7 @@ void ADDCALL hackrf_device_list_free(hackrf_device_list_t *list)
 
 libusb_device_handle* hackrf_open_usb(const char* const desired_serial_number)
 {
+	_log("enter\n");
 	libusb_device_handle* usb_device = NULL;
 	libusb_device** devices = NULL;
 	const ssize_t list_length = libusb_get_device_list(g_libusb_context, &devices);
@@ -574,6 +618,7 @@ libusb_device_handle* hackrf_open_usb(const char* const desired_serial_number)
 
 static int hackrf_open_setup(libusb_device_handle* usb_device, hackrf_device** device)
 {
+	_log("enter\n");
 	int result;
 	hackrf_device* lib_device;
 
@@ -636,6 +681,7 @@ static int hackrf_open_setup(libusb_device_handle* usb_device, hackrf_device** d
 
 int ADDCALL hackrf_open(hackrf_device** device)
 {
+	_log("enter\n");
 	libusb_device_handle* usb_device;
 	
 	if( device == NULL )
@@ -665,6 +711,7 @@ int ADDCALL hackrf_open(hackrf_device** device)
 
 int ADDCALL hackrf_open_by_serial(const char* const desired_serial_number, hackrf_device** device)
 {
+	_log("enter\n");
 	libusb_device_handle* usb_device;
 	
 	if( desired_serial_number == NULL )
@@ -689,6 +736,7 @@ int ADDCALL hackrf_open_by_serial(const char* const desired_serial_number, hackr
 
 int ADDCALL hackrf_device_list_open(hackrf_device_list_t *list, int idx, hackrf_device** device)
 {
+	_log("enter\n");
 	libusb_device_handle* usb_device;
 	int i, result;
 	
@@ -699,6 +747,7 @@ int ADDCALL hackrf_device_list_open(hackrf_device_list_t *list, int idx, hackrf_
 	
 	i = list->usb_device_index[idx];
 
+	_log("calling libusb_open - index %d\n", i);
 	result = libusb_open(list->usb_devices[i], &usb_device);
 	if(result != 0) {
 		usb_device = NULL;
@@ -711,6 +760,7 @@ int ADDCALL hackrf_device_list_open(hackrf_device_list_t *list, int idx, hackrf_
 
 int ADDCALL hackrf_set_transceiver_mode(hackrf_device* device, hackrf_transceiver_mode value)
 {
+	_log("enter\n");
 	int result;
 	result = libusb_control_transfer(
 		device->usb_device,
@@ -734,6 +784,7 @@ int ADDCALL hackrf_set_transceiver_mode(hackrf_device* device, hackrf_transceive
 
 int ADDCALL hackrf_max2837_read(hackrf_device* device, uint8_t register_number, uint16_t* value)
 {
+	_log("enter\n");
 	int result;
 
 	if( register_number >= 32 )
@@ -763,6 +814,7 @@ int ADDCALL hackrf_max2837_read(hackrf_device* device, uint8_t register_number, 
 
 int ADDCALL hackrf_max2837_write(hackrf_device* device, uint8_t register_number, uint16_t value)
 {
+	_log("enter\n");
 	int result;
 	
 	if( register_number >= 32 )
@@ -796,6 +848,7 @@ int ADDCALL hackrf_max2837_write(hackrf_device* device, uint8_t register_number,
 
 int ADDCALL hackrf_si5351c_read(hackrf_device* device, uint16_t register_number, uint16_t* value)
 {
+	_log("enter\n");
 	uint8_t temp_value;
 	int result;
 	
@@ -828,6 +881,7 @@ int ADDCALL hackrf_si5351c_read(hackrf_device* device, uint16_t register_number,
 
 int ADDCALL hackrf_si5351c_write(hackrf_device* device, uint16_t register_number, uint16_t value)
 {
+	_log("enter\n");
 	int result;
 	
 	if( register_number >= 256 )
@@ -860,6 +914,7 @@ int ADDCALL hackrf_si5351c_write(hackrf_device* device, uint16_t register_number
 
 int ADDCALL hackrf_set_baseband_filter_bandwidth(hackrf_device* device, const uint32_t bandwidth_hz)
 {
+	_log("enter\n");
 	int result;
 	result = libusb_control_transfer(
 		device->usb_device,
@@ -884,6 +939,7 @@ int ADDCALL hackrf_set_baseband_filter_bandwidth(hackrf_device* device, const ui
 
 int ADDCALL hackrf_rffc5071_read(hackrf_device* device, uint8_t register_number, uint16_t* value)
 {
+	_log("enter\n");
 	int result;
 	
 	if( register_number >= 31 )
@@ -913,6 +969,7 @@ int ADDCALL hackrf_rffc5071_read(hackrf_device* device, uint8_t register_number,
 
 int ADDCALL hackrf_rffc5071_write(hackrf_device* device, uint8_t register_number, uint16_t value)
 {
+	_log("enter\n");
 	int result;
 	
 	if( register_number >= 31 )
@@ -942,6 +999,7 @@ int ADDCALL hackrf_rffc5071_write(hackrf_device* device, uint8_t register_number
 
 int ADDCALL hackrf_spiflash_erase(hackrf_device* device)
 {
+	_log("enter\n");
 	int result;
 	result = libusb_control_transfer(
 		device->usb_device,
@@ -966,6 +1024,7 @@ int ADDCALL hackrf_spiflash_erase(hackrf_device* device)
 int ADDCALL hackrf_spiflash_write(hackrf_device* device, const uint32_t address,
 		const uint16_t length, unsigned char* const data)
 {
+	_log("enter\n");
 	int result;
 	
 	if (address > 0x0FFFFF)
@@ -996,6 +1055,7 @@ int ADDCALL hackrf_spiflash_write(hackrf_device* device, const uint32_t address,
 int ADDCALL hackrf_spiflash_read(hackrf_device* device, const uint32_t address,
 		const uint16_t length, unsigned char* data)
 {
+	_log("enter\n");
 	int result;
 	
 	if (address > 0x0FFFFF)
@@ -1025,6 +1085,7 @@ int ADDCALL hackrf_spiflash_read(hackrf_device* device, const uint32_t address,
 
 int ADDCALL hackrf_spiflash_status(hackrf_device* device, uint8_t* data)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0103)
 	int result;
 
@@ -1050,6 +1111,7 @@ int ADDCALL hackrf_spiflash_status(hackrf_device* device, uint8_t* data)
 
 int ADDCALL hackrf_spiflash_clear_status(hackrf_device* device)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0103)
 	int result;
 	result = libusb_control_transfer(
@@ -1075,6 +1137,7 @@ int ADDCALL hackrf_spiflash_clear_status(hackrf_device* device)
 int ADDCALL hackrf_cpld_write(hackrf_device* device,
 		unsigned char* const data, const unsigned int total_length)
 {
+	_log("enter\n");
 	const unsigned int chunk_size = 512;
 	unsigned int i;
 	int result, transferred = 0;
@@ -1105,6 +1168,7 @@ int ADDCALL hackrf_cpld_write(hackrf_device* device,
 
 int ADDCALL hackrf_board_id_read(hackrf_device* device, uint8_t* value)
 {
+	_log("enter\n");
 	int result;
 	result = libusb_control_transfer(
 		device->usb_device,
@@ -1129,6 +1193,7 @@ int ADDCALL hackrf_board_id_read(hackrf_device* device, uint8_t* value)
 int ADDCALL hackrf_version_string_read(hackrf_device* device, char* version,
 		uint8_t length)
 {
+	_log("enter\n");
 	int result;
 	result = libusb_control_transfer(
 		device->usb_device,
@@ -1154,6 +1219,7 @@ int ADDCALL hackrf_version_string_read(hackrf_device* device, char* version,
 extern ADDAPI int ADDCALL hackrf_usb_api_version_read(hackrf_device* device,
 		uint16_t* version)
 {
+	_log("enter\n");
 	int result;
 	libusb_device* dev;
 	struct libusb_device_descriptor desc;
@@ -1177,6 +1243,7 @@ typedef struct {
 
 int ADDCALL hackrf_set_freq(hackrf_device* device, const uint64_t freq_hz)
 {
+	_log("enter\n");
 	uint32_t l_freq_mhz;
 	uint32_t l_freq_hz;
 	set_freq_params_t set_freq_params;
@@ -1220,6 +1287,7 @@ int ADDCALL hackrf_set_freq_explicit(hackrf_device* device,
 		const uint64_t if_freq_hz, const uint64_t lo_freq_hz,
 		const enum rf_path_filter path)
 {
+	_log("enter\n");
 	struct set_freq_explicit_params params;
 	uint8_t length;
 	int result;
@@ -1277,6 +1345,7 @@ int ADDCALL hackrf_set_sample_rate_manual(hackrf_device* device,
                                           const uint32_t freq_hz,
                                           const uint32_t divider)
 {
+	_log("enter\n");
 	set_fracrate_params_t set_fracrate_params;
 	uint8_t length;
 	int result;
@@ -1314,6 +1383,7 @@ int ADDCALL hackrf_set_sample_rate_manual(hackrf_device* device,
  */
 int ADDCALL hackrf_set_sample_rate(hackrf_device* device, const double freq)
 {
+	_log("enter\n");
 	const int MAX_N = 32;
 	uint32_t freq_hz, divider;
 	double freq_frac = 1.0 + freq - (int)freq;
@@ -1354,6 +1424,7 @@ int ADDCALL hackrf_set_sample_rate(hackrf_device* device, const double freq)
 
 int ADDCALL hackrf_set_amp_enable(hackrf_device* device, const uint8_t value)
 {
+	_log("enter\n");
 	int result;
 	result = libusb_control_transfer(
 		device->usb_device,
@@ -1377,6 +1448,7 @@ int ADDCALL hackrf_set_amp_enable(hackrf_device* device, const uint8_t value)
 
 int ADDCALL hackrf_board_partid_serialno_read(hackrf_device* device, read_partid_serialno_t* read_partid_serialno)
 {
+	_log("enter\n");
 	uint8_t length;
 	int result;
 	
@@ -1411,6 +1483,7 @@ int ADDCALL hackrf_board_partid_serialno_read(hackrf_device* device, read_partid
 
 int ADDCALL hackrf_set_lna_gain(hackrf_device* device, uint32_t value)
 {
+	_log("enter\n");
 	int result;
 	uint8_t retval;
 	
@@ -1441,6 +1514,7 @@ int ADDCALL hackrf_set_lna_gain(hackrf_device* device, uint32_t value)
 
 int ADDCALL hackrf_set_vga_gain(hackrf_device* device, uint32_t value)
 {
+	_log("enter\n");
 	int result;
 	uint8_t retval;
 	
@@ -1471,6 +1545,7 @@ int ADDCALL hackrf_set_vga_gain(hackrf_device* device, uint32_t value)
 
 int ADDCALL hackrf_set_txvga_gain(hackrf_device* device, uint32_t value)
 {
+	_log("enter\n");
 	int result;
 	uint8_t retval;
 	
@@ -1500,6 +1575,7 @@ int ADDCALL hackrf_set_txvga_gain(hackrf_device* device, uint32_t value)
 
 int ADDCALL hackrf_set_antenna_enable(hackrf_device* device, const uint8_t value)
 {
+	_log("enter\n");
 	int result;
 	result = libusb_control_transfer(
 		device->usb_device,
@@ -1523,28 +1599,36 @@ int ADDCALL hackrf_set_antenna_enable(hackrf_device* device, const uint8_t value
 
 static void* transfer_threadproc(void* arg)
 {
+	_log("enter\n");
 	hackrf_device* device = (hackrf_device*)arg;
 	int error;
 	struct timeval timeout = { 0, 500000 };
 
 	while(device->do_exit == false )
 	{
+		_log("calling libusb_handle_events_timeout\n");
 		error = libusb_handle_events_timeout(g_libusb_context, &timeout);
+		_log("back from libusb_handle_events_timeout\n");
 		if( (error != 0) && (error != LIBUSB_ERROR_INTERRUPTED) )
 		{
+			_log("setting streaming to false\n");
 			device->streaming = false;
 		}
 	}
 
+	_log("returning\n");
 	return NULL;
 }
 
 static void LIBUSB_CALL hackrf_libusb_transfer_callback(struct libusb_transfer* usb_transfer)
 {
+	_log("--- CB --- enter\n");
 	hackrf_device* device = (hackrf_device*)usb_transfer->user_data;
 
+	_log("--- CB --- usb_transfer->status is %d\n", usb_transfer->status);
 	if(usb_transfer->status == LIBUSB_TRANSFER_COMPLETED)
 	{
+		_log("--- CB --- transfer completed\n");
 		hackrf_transfer transfer = {
 			.device = device,
 			.buffer = usb_transfer->buffer,
@@ -1556,29 +1640,40 @@ static void LIBUSB_CALL hackrf_libusb_transfer_callback(struct libusb_transfer* 
 
 		if( device->callback(&transfer) == 0 )
 		{
+			_log("--- CB --- transfer == 0\n");
 			if( libusb_submit_transfer(usb_transfer) < 0)
 			{
+				_log("--- CB --- libusb_submit_transfer failed\n");
+				_log("--- CB --- calling request_exit\n");
 				request_exit(device);
 			}else {
+				_log("--- CB --- return success\n");
 				return;
 			}
 		}else {
+			_log("--- CB --- transfer != 0\n");
+			_log("--- CB --- calling request_exit\n");
 			request_exit(device);
 		}
 	} else if(usb_transfer->status == LIBUSB_TRANSFER_CANCELLED) {
+		_log("--- CB --- transfer cancelled already\n");
 		/* Nothing; this will happen during shutdown */
 	} else {
+		_log("--- CB --- transfer - something else happened\n");
 		/* Other cases LIBUSB_TRANSFER_NO_DEVICE
 		LIBUSB_TRANSFER_ERROR, LIBUSB_TRANSFER_TIMED_OUT
 		LIBUSB_TRANSFER_STALL,	LIBUSB_TRANSFER_OVERFLOW ....
 		*/
+		_log("--- CB --- calling request_exit\n");
 		request_exit(device); /* Fatal error stop transfer */
+		_log("--- CB --- setting streaming to false\n");
 		device->streaming = false;
 	}
 }
 
 static int kill_transfer_thread(hackrf_device* device)
 {
+	_log("enter\n");
 	void* value;
 	int result;
 
@@ -1593,19 +1688,25 @@ static int kill_transfer_thread(hackrf_device* device)
 		 * complete with the callback but for now that
 		 * isn't super easy to do.
 		 */
+		_log("calling cancel_transfers\n");
 		cancel_transfers(device);
 
 		/*
 		 * Now call request_exit() to halt the main loop.
 		 */
+		_log("calling request_exit\n");
 		request_exit(device);
 
 		value = NULL;
+		_log("calling pthread_join\n");
 		result = pthread_join(device->transfer_thread, &value);
+		_log("returned from pthread_join\n");
 		if( result != 0 )
 		{
+			_log("return error thread\n");
 			return HACKRF_ERROR_THREAD;
 		}
+		_log("setting transfer_thread_started to false\n");
 		device->transfer_thread_started = false;
 
 	}
@@ -1616,6 +1717,7 @@ static int kill_transfer_thread(hackrf_device* device)
 	 */
 	device->do_exit = false;
 
+	_log("return success\n");
 	return HACKRF_SUCCESS;
 }
 
@@ -1623,6 +1725,7 @@ static int prepare_setup_transfers(hackrf_device* device,
 	const uint8_t endpoint_address,
 		hackrf_sample_block_cb_fn callback)
 {
+	_log("enter\n");
 	int result;
 
 	if( device->transfers_setup == true )
@@ -1631,6 +1734,7 @@ static int prepare_setup_transfers(hackrf_device* device,
 	}
 
 	device->callback = callback;
+	_log("calling prepare_transfers\n");
 	result = prepare_transfers(
 		device, endpoint_address,
 		hackrf_libusb_transfer_callback
@@ -1638,61 +1742,76 @@ static int prepare_setup_transfers(hackrf_device* device,
 
 	if( result != HACKRF_SUCCESS )
 	{
+		_log("return error %d\n", result);
 		return result;
 	}
 
+	_log("return success\n");
 	return HACKRF_SUCCESS;
 }
 
 static int create_transfer_thread(hackrf_device* device)
 {
+	_log("enter\n");
 	int result;
 
 	if( device->transfer_thread_started == false )
 	{
 		device->streaming = false;
 		device->do_exit = false;
+		_log("calling pthread_create\n");
 		result = pthread_create(&device->transfer_thread, 0, transfer_threadproc, device);
+		_log("returned from pthread_create\n");
 		if( result == 0 )
 		{
+			_log("setting transfer_thread_started to true\n");
 			device->transfer_thread_started = true;
 		}else {
+			_log("return error thread\n");
 			return HACKRF_ERROR_THREAD;
 		}
 	} else {
+		_log("return error busy\n");
 		return HACKRF_ERROR_BUSY;
 	}
 
+	_log("return success\n");
 	return HACKRF_SUCCESS;
 }
 
 int ADDCALL hackrf_is_streaming(hackrf_device* device)
 {
+	_log("enter\n");
 	/* return hackrf is streaming only when streaming, transfer_thread_started are true and do_exit equal false */
 
 	if( (device->transfer_thread_started == true) &&
 		(device->streaming == true) && 
 		(device->do_exit == false) )
 	{
+		_log("return true\n");
 		return HACKRF_TRUE;
 	} else {
 	
 		if(device->transfer_thread_started == false)
 		{
+			_log("return error streaming_thread_err\n");
 			return HACKRF_ERROR_STREAMING_THREAD_ERR;
 		}
 
 		if(device->streaming == false)
 		{
+			_log("return error streaming_stopped\n");
 			return HACKRF_ERROR_STREAMING_STOPPED;
 		}
 
+		_log("return error streaming_exit_called\n");
 		return HACKRF_ERROR_STREAMING_EXIT_CALLED;
 	}
 }
 
 int ADDCALL hackrf_start_rx(hackrf_device* device, hackrf_sample_block_cb_fn callback, void* rx_ctx)
 {
+	_log("enter\n");
 	int result;
 	const uint8_t endpoint_address = LIBUSB_ENDPOINT_IN | 1;
 	device->rx_ctx = rx_ctx;
@@ -1702,6 +1821,7 @@ int ADDCALL hackrf_start_rx(hackrf_device* device, hackrf_sample_block_cb_fn cal
 		result = prepare_setup_transfers(device, endpoint_address, callback);
 	}
 	if (result == HACKRF_SUCCESS) {
+		_log("setting streaming to true\n");
 		device->streaming = true;
 	}
 	return result;
@@ -1709,6 +1829,7 @@ int ADDCALL hackrf_start_rx(hackrf_device* device, hackrf_sample_block_cb_fn cal
 
 static int hackrf_stop_rx_cmd(hackrf_device* device)
 {
+	_log("enter\n");
 	int result;
 
 	result = hackrf_set_transceiver_mode(device, HACKRF_TRANSCEIVER_MODE_OFF);
@@ -1717,6 +1838,7 @@ static int hackrf_stop_rx_cmd(hackrf_device* device)
 #else
 	usleep(10 * 1000);
 #endif
+	_log("return %d\n", result);
 	return result;
 }
 
@@ -1730,36 +1852,47 @@ static int hackrf_stop_rx_cmd(hackrf_device* device)
  */
 int ADDCALL hackrf_stop_rx(hackrf_device* device)
 {
+	_log("enter\n");
 	int result;
 
+	_log("setting streaming to false\n");
 	device->streaming = false;
+	_log("calling cancel_transfers\n");
 	result = cancel_transfers(device);
 	if (result != HACKRF_SUCCESS)
 	{
+		_log("return %d\n", result);
 		return result;
 	}
 
-	return hackrf_stop_rx_cmd(device);
+	result = hackrf_stop_rx_cmd(device);
+	_log("return %d\n", result);
+	return result;
 }
 
 int ADDCALL hackrf_start_tx(hackrf_device* device, hackrf_sample_block_cb_fn callback, void* tx_ctx)
 {
+	_log("enter\n");
 	int result;
 	const uint8_t endpoint_address = LIBUSB_ENDPOINT_OUT | 2;
 	result = hackrf_set_transceiver_mode(device, HACKRF_TRANSCEIVER_MODE_TRANSMIT);
 	if( result == HACKRF_SUCCESS )
 	{
 		device->tx_ctx = tx_ctx;
+		_log("calling prepare_setup_transfers\n");
 		result = prepare_setup_transfers(device, endpoint_address, callback);
 	}
 	if (result == HACKRF_SUCCESS) {
+		_log("setting streaming to true\n");
 		device->streaming = true;
 	}
+	_log("return %d\n", result);
 	return result;
 }
 
 static int hackrf_stop_tx_cmd(hackrf_device* device)
 {
+	_log("enter\n");
 	int result;
 	result = hackrf_set_transceiver_mode(device, HACKRF_TRANSCEIVER_MODE_OFF);
 #ifdef _WIN32
@@ -1767,6 +1900,7 @@ static int hackrf_stop_tx_cmd(hackrf_device* device)
 #else
 	usleep(10 * 1000);
 #endif
+	_log("return %d\n", result);
 	return result;
 }
 
@@ -1780,19 +1914,26 @@ static int hackrf_stop_tx_cmd(hackrf_device* device)
  */
 int ADDCALL hackrf_stop_tx(hackrf_device* device)
 {
+	_log("enter\n");
 	int result;
+	_log("setting streaming to false\n");
 	device->streaming = false;
+	_log("calling cancel_transfers\n");
 	result = cancel_transfers(device);
 	if (result != HACKRF_SUCCESS)
 	{
+		_log("return %d\n", result);
 		return result;
 	}
 
-	return hackrf_stop_tx_cmd(device);
+	result = hackrf_stop_tx_cmd(device);
+	_log("return %d\n", result);
+	return result;
 }
 
 int ADDCALL hackrf_close(hackrf_device* device)
 {
+	_log("enter\n");
 	int result1, result2, result3;
 
 	result1 = HACKRF_SUCCESS;
@@ -1808,14 +1949,18 @@ int ADDCALL hackrf_close(hackrf_device* device)
 		 * Finally kill the transfer thread, which will
 		 * also cancel any pending transmit/receive transfers.
 		 */
+		_log("calling kill_transfer_thread\n");
 		result3 = kill_transfer_thread(device);
 		if( device->usb_device != NULL )
 		{
+			_log("calling libusb_release_interface\n");
 			libusb_release_interface(device->usb_device, 0);
+			_log("calling libusb_close\n");
 			libusb_close(device->usb_device);
 			device->usb_device = NULL;
 		}
 
+		_log("calling free_transfers\n");
 		free_transfers(device);
 
 		free(device);
@@ -1824,17 +1969,21 @@ int ADDCALL hackrf_close(hackrf_device* device)
 
 	if (result3 != HACKRF_SUCCESS)
 	{
+	        _log("return result3 %d\n", result3);
 		return result3;
 	}
 	if (result2 != HACKRF_SUCCESS)
 	{
+	        _log("return result2 %d\n", result2);
 		return result2;
 	}
+	_log("return result1 %d\n", result1);
 	return result1;
 }
 
 const char* ADDCALL hackrf_error_name(enum hackrf_error errcode)
 {
+	_log("enter\n");
 	switch(errcode)
 	{
 	case HACKRF_SUCCESS:
@@ -1890,6 +2039,7 @@ const char* ADDCALL hackrf_error_name(enum hackrf_error errcode)
 
 const char* ADDCALL hackrf_board_id_name(enum hackrf_board_id board_id)
 {
+	_log("enter\n");
 	switch(board_id)
 	{
 	case BOARD_ID_JELLYBEAN:
@@ -1914,6 +2064,7 @@ const char* ADDCALL hackrf_board_id_name(enum hackrf_board_id board_id)
 
 extern ADDAPI const char* ADDCALL hackrf_usb_board_id_name(enum hackrf_usb_board_id usb_board_id)
 {
+	_log("enter\n");
 	switch(usb_board_id)
 	{
 	case USB_BOARD_ID_JAWBREAKER:
@@ -1935,6 +2086,7 @@ extern ADDAPI const char* ADDCALL hackrf_usb_board_id_name(enum hackrf_usb_board
 
 const char* ADDCALL hackrf_filter_path_name(const enum rf_path_filter path)
 {
+	_log("enter\n");
 	switch(path) {
 	case RF_PATH_FILTER_BYPASS:
 		return "mixer bypass";
@@ -1950,6 +2102,7 @@ const char* ADDCALL hackrf_filter_path_name(const enum rf_path_filter path)
 /* Return final bw round down and less than expected bw. */
 uint32_t ADDCALL hackrf_compute_baseband_filter_bw_round_down_lt(const uint32_t bandwidth_hz)
 {
+	_log("enter\n");
 	const max2837_ft_t* p = max2837_ft;
 	while( p->bandwidth_hz != 0 )
 	{
@@ -1970,6 +2123,7 @@ uint32_t ADDCALL hackrf_compute_baseband_filter_bw_round_down_lt(const uint32_t 
 /* Return final bw. */
 uint32_t ADDCALL hackrf_compute_baseband_filter_bw(const uint32_t bandwidth_hz)
 {
+	_log("enter\n");
 	const max2837_ft_t* p = max2837_ft;
 	while( p->bandwidth_hz != 0 )
 	{
@@ -1993,6 +2147,7 @@ uint32_t ADDCALL hackrf_compute_baseband_filter_bw(const uint32_t bandwidth_hz)
 /* All features below require USB API version 0x0102 or higher) */
 
 int ADDCALL hackrf_set_hw_sync_mode(hackrf_device* device, const uint8_t value) {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0102)
 	int result = libusb_control_transfer(
 		device->usb_device,
@@ -2008,8 +2163,10 @@ int ADDCALL hackrf_set_hw_sync_mode(hackrf_device* device, const uint8_t value) 
 	if( result != 0 )
 	{
 		last_libusb_error = result;
+		_log("return libusb error %d\n", result);
 		return HACKRF_ERROR_LIBUSB;
 	} else {
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	}
 }
@@ -2032,6 +2189,7 @@ int ADDCALL hackrf_init_sweep(hackrf_device* device,
 		const uint16_t* frequency_list, const int num_ranges,
 		const uint32_t num_bytes, const uint32_t step_width,
 		const uint32_t offset, const enum sweep_style style) {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0102)
 	int result, i;
 	unsigned char data[9 + MAX_SWEEP_RANGES * 2 * sizeof(frequency_list[0])];
@@ -2084,8 +2242,10 @@ int ADDCALL hackrf_init_sweep(hackrf_device* device,
 
 	if (result < size) {
 		last_libusb_error = result;
+		_log("return libusb error %d\n", result);
 		return HACKRF_ERROR_LIBUSB;
 	} else {
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	}
 }
@@ -2099,6 +2259,7 @@ int ADDCALL hackrf_init_sweep(hackrf_device* device,
  */
 int ADDCALL hackrf_get_operacake_boards(hackrf_device* device, uint8_t* boards)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0105)
 	int result;
 	result = libusb_control_transfer(
@@ -2115,8 +2276,10 @@ int ADDCALL hackrf_get_operacake_boards(hackrf_device* device, uint8_t* boards)
 	if (result < 8)
 	{
 		last_libusb_error = result;
+		_log("return libusb error %d\n", result);
 		return HACKRF_ERROR_LIBUSB;
 	} else {
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	}
 }
@@ -2127,6 +2290,7 @@ int ADDCALL hackrf_set_operacake_ports(hackrf_device* device,
                                        uint8_t port_a,
                                        uint8_t port_b)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0102)
 	int result;
 	/* Error checking */
@@ -2136,6 +2300,7 @@ int ADDCALL hackrf_set_operacake_ports(hackrf_device* device,
 	/* Check which side PA and PB are on */
 	if(((port_a <= OPERACAKE_PA4) && (port_b <= OPERACAKE_PA4))
 	    || ((port_a > OPERACAKE_PA4) && (port_b > OPERACAKE_PA4))) {
+		_log("return error invalid param\n");
 		return HACKRF_ERROR_INVALID_PARAM;
 	}
 	result = libusb_control_transfer(
@@ -2151,13 +2316,16 @@ int ADDCALL hackrf_set_operacake_ports(hackrf_device* device,
 
 	if (result != 0) {
 		last_libusb_error = result;
+		_log("return libusb error %d\n", result);
 		return HACKRF_ERROR_LIBUSB;
 	} else {
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	}
 }
 
 int ADDCALL hackrf_reset(hackrf_device* device) {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0102)
 	int result = libusb_control_transfer(
 		device->usb_device,
@@ -2172,14 +2340,17 @@ int ADDCALL hackrf_reset(hackrf_device* device) {
 
 	if( result != 0 ) {
 		last_libusb_error = result;
+		_log("return libusb error %d\n", result);
 		return HACKRF_ERROR_LIBUSB;
 	} else {
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	}
 }
 
 int ADDCALL hackrf_set_operacake_ranges(hackrf_device* device, uint8_t* ranges, uint8_t len_ranges)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0103)
 	int result;
 
@@ -2204,6 +2375,7 @@ int ADDCALL hackrf_set_operacake_ranges(hackrf_device* device, uint8_t* ranges, 
 
 int ADDCALL hackrf_set_clkout_enable(hackrf_device* device, const uint8_t value)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0103)
 	int result;
 	result = libusb_control_transfer(
@@ -2220,8 +2392,10 @@ int ADDCALL hackrf_set_clkout_enable(hackrf_device* device, const uint8_t value)
 	if (result != 0)
 	{
 		last_libusb_error = result;
+		_log("return libusb error %d\n", result);
 		return HACKRF_ERROR_LIBUSB;
 	} else {
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	}
 }
@@ -2229,6 +2403,7 @@ int ADDCALL hackrf_set_clkout_enable(hackrf_device* device, const uint8_t value)
 int ADDCALL hackrf_operacake_gpio_test(hackrf_device* device, const uint8_t address,
                                        uint16_t* test_result)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0103)
 	int result;
 	result = libusb_control_transfer(
@@ -2254,6 +2429,7 @@ int ADDCALL hackrf_operacake_gpio_test(hackrf_device* device, const uint8_t addr
 int ADDCALL hackrf_cpld_checksum(hackrf_device* device,
 								 uint32_t* crc)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0103)
 	uint8_t length;
 	int result;
@@ -2273,9 +2449,11 @@ int ADDCALL hackrf_cpld_checksum(hackrf_device* device,
 	if (result < length)
 	{
 		last_libusb_error = result;
+		_log("return libusb error %d\n", result);
 		return HACKRF_ERROR_LIBUSB;
 	} else {
 		*crc = TO_LE(*crc);
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	}
 }
@@ -2283,6 +2461,7 @@ int ADDCALL hackrf_cpld_checksum(hackrf_device* device,
 
 int ADDCALL hackrf_set_ui_enable(hackrf_device* device, const uint8_t value)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0104)
 	int result;
 	result = libusb_control_transfer(
@@ -2299,14 +2478,17 @@ int ADDCALL hackrf_set_ui_enable(hackrf_device* device, const uint8_t value)
 	if (result != 0)
 	{
 		last_libusb_error = result;
+		_log("return libusb error %d\n", result);
 		return HACKRF_ERROR_LIBUSB;
 	} else {
+		_log("return success\n");
 		return HACKRF_SUCCESS;
 	}
 }
 
 int ADDCALL hackrf_start_rx_sweep(hackrf_device* device, hackrf_sample_block_cb_fn callback, void* rx_ctx)
 {
+	_log("enter\n");
 	USB_API_REQUIRED(device, 0x0104)
 	int result;
 	const uint8_t endpoint_address = LIBUSB_ENDPOINT_IN | 1;
@@ -2317,8 +2499,11 @@ int ADDCALL hackrf_start_rx_sweep(hackrf_device* device, hackrf_sample_block_cb_
 		result = prepare_setup_transfers(device, endpoint_address, callback);
 	}
 	if (result == HACKRF_SUCCESS) {
+		_log("setting streaming to true\n");
 		device->streaming = true;
 	}
+	_log("streaming is %s\n", (device->streaming) ? "true" : "false");
+	_log("return %d\n", result);
 	return result;
 }
 
