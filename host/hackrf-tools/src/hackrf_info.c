@@ -48,11 +48,13 @@ int main(void)
 	printf("hackrf_info version: %s\n", TOOL_RELEASE);
 	printf("libhackrf version: %s (%s)\n", hackrf_library_release(),
 			hackrf_library_version());
+	fflush(stdout);
 	
 	list = hackrf_device_list();
 	
 	if (list->devicecount < 1 ) {
 		printf("No HackRF boards found.\n");
+		fflush(stdout);
 		return EXIT_FAILURE;
 	}
 	
@@ -62,6 +64,7 @@ int main(void)
 			
 		printf("Found HackRF\n");
 		printf("Index: %d\n", i);
+		fflush(stdout);
 		
 		if (list->serial_numbers[i])
 			printf("Serial number: %s\n", list->serial_numbers[i]);
@@ -85,6 +88,7 @@ int main(void)
 		}
 		printf("Board ID Number: %d (%s)\n", board_id,
 				hackrf_board_id_name(board_id));
+		fflush(stdout);
 
 		result = hackrf_version_string_read(device, &version[0], 255);
 		if (result != HACKRF_SUCCESS) {
@@ -101,6 +105,7 @@ int main(void)
 		}
 		printf("Firmware Version: %s (API:%x.%02x)\n", version,
 				(usb_version>>8)&0xFF, usb_version&0xFF);
+		fflush(stdout);
 
 		result = hackrf_board_partid_serialno_read(device, &read_partid_serialno);	
 		if (result != HACKRF_SUCCESS) {
@@ -111,6 +116,7 @@ int main(void)
 		printf("Part ID Number: 0x%08x 0x%08x\n", 
 					read_partid_serialno.part_id[0],
 					read_partid_serialno.part_id[1]);
+		fflush(stdout);
 
 		result = hackrf_get_operacake_boards(device, &operacakes[0]);
 		if ((result != HACKRF_SUCCESS) && (result != HACKRF_ERROR_USB_API_VERSION)) {
@@ -123,6 +129,7 @@ int main(void)
 				if(operacakes[j] == HACKRF_OPERACAKE_ADDRESS_INVALID)
 					break;
 				printf("Opera Cake found, address: %d\n", operacakes[j]);
+				fflush(stdout);
 			}
 		}
 		
@@ -136,9 +143,11 @@ int main(void)
 		}
 		if(result == HACKRF_SUCCESS) {
 			printf("CPLD checksum: 0x%08x\n", cpld_crc);
+			fflush(stdout);
 		}
 #endif /* HACKRF_ISSUE_609_IS_FIXED */
 
+		fflush(stdout);
 		result = hackrf_close(device);
 		if (result != HACKRF_SUCCESS) {
 			fprintf(stderr, "hackrf_close() failed: %s (%d)\n",
@@ -146,8 +155,10 @@ int main(void)
 		}
 	}
 	
+	fflush(stdout);
 	hackrf_device_list_free(list);
 	hackrf_exit();
+	fflush(stdout);
 
 	return EXIT_SUCCESS;
 }
